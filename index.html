@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>街市買餸 AAC 語音溝通板 - Cantonese & English AAC Communicator</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            aacYellow: '#FFF59D',
+            aacBlue: '#BBDEFB',
+            aacGreen: '#C8E6C9',
+            aacPink: '#F8BBD0',
+            aacOrange: '#FFE0B2',
+            aacPurple: '#E1BEE7',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Prevent accidental selection on tablets/iPads */
+    .touch-target {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* Speaking active pulse animation */
+    @keyframes pulseRing {
+      0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+      70% { box-shadow: 0 0 0 12px rgba(37, 99, 235, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+    }
+    .speaking-active {
+      animation: pulseRing 1.2s infinite;
+      outline: 4px solid #2563eb !important;
+      transform: scale(1.02);
+      z-index: 10;
+    }
+    /* Drag and drop visual cues */
+    .dragging {
+      opacity: 0.45;
+      transform: scale(0.95);
+      border: 3px dashed #3b82f6 !important;
+    }
+    .drag-over {
+      outline: 3px solid #10b981 !important;
+      background-color: #ecfdf5 !important;
+    }
+    /* Hide scrollbars for clean AAC look */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col font-sans overflow-hidden touch-target">
+
+  <header class="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between shadow-sm z-30">
+    <div class="flex items-center space-x-2">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-md">
+        <i class="fa-solid fa-comments"></i>
+      </div>
+      <div>
+        <h1 class="text-base font-bold leading-tight text-slate-800 flex items-center gap-1.5">
+          <span>街市買餸</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-semibold">AAC 溝通板</span>
+        </h1>
+        <p class="text-[11px] text-slate-500 hidden sm:block">粵語主導 / Dual Cantonese & English Voice</p>
+      </div>
+    </div>
+
+    <!-- Right Controls: Edit Mode, Layout, Speech Settings -->
+    <div class="flex items-center space-x-1 sm:space-x-2">
+      <!-- Layout Switcher Button -->
+      <div class="relative inline-block text-left" id="layoutDropdownContainer">
+        <button id="layoutBtn" class="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium border border-slate-300">
+          <i class="fa-solid fa-table-cells-large text-slate-600"></i>
+          <span id="currentLayoutLabel" class="hidden md:inline">9格 (3x3)</span>
+          <i class="fa-solid fa-chevron-down text-[10px]"></i>
+        </button>
+        <div id="layoutMenu" class="hidden absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200 py-1 z-50">
+          <button onclick="setGridSize(4, '4格 (2x2)')" class="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center justify-between">
+            <span>4 格版面 (2x2 - 幼兒/復康)</span>
+          </button>
+          <button onclick="setGridSize(6, '6格 (3x2)')" class="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center justify-between">
+            <span>6 格版面 (3x2)</span>
+          </button>
+          <button onclick="setGridSize(9, '9格 (3x3)')" class="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center justify-between font-bold text-blue-600">
+            <span>9 格版面 (3x3 - 預設)</span>
+          </button>
+          <button onclick="setGridSize(12, '12格 (4x3)')" class="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center justify-between">
+            <span>12 格版面 (4x3)</span>
+          </button>
+          <button onclick="setGridSize(0, '自動滿版 (Auto)')" class="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 hover:text-blue-600 flex items-center justify-between border-t border-slate-100">
+            <span>自動捲動 (全部顯示)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Speech Settings Modal Trigger -->
+      <button onclick="openSpeechModal()" title="發音與語音設定" class="p-2 sm:px-3 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium border border-slate-300 flex items-center gap-1">
+        <i class="fa-solid fa-volume-high text-blue-600"></i>
+        <span class="hidden md:inline">語音設定</span>
+      </button>
+
+      <!-- Speech Therapist (ST) Edit Mode Switch -->
+      <button id="toggleEditModeBtn" onclick="toggleEditMode()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300">
+        <i class="fa-solid fa-user-doctor text-indigo-600"></i>
+        <span id="editModeBtnText">言語治療師模式</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="bg-amber-50/70 border-b border-amber-200 px-3 py-2 flex items-center gap-2 shadow-inner min-h-[74px]">
+    <!-- Speak All in one-go button -->
+    <button onclick="speakSentenceQueue()" id="playSentenceBtn" class="flex-shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 sm:px-4 py-2 rounded-xl shadow flex items-center gap-2 text-xs sm:text-sm active:scale-95 transition">
+      <i class="fa-solid fa-play text-base"></i>
+      <span class="hidden xs:inline">播放句子</span>
+      <span class="text-[10px] bg-emerald-800/60 px-1.5 py-0.5 rounded-full" id="sentenceCountBadge">0</span>
+    </button>
+
+    <!-- Sentence Cards Container (Horizontally Scrollable) -->
+    <div id="sentenceBar" class="flex-1 flex items-center gap-2 overflow-x-auto no-scrollbar py-1 min-h-[56px] px-1 border border-dashed border-amber-300/80 rounded-xl bg-white/70">
+      <p id="sentenceEmptyPlaceholder" class="text-xs text-slate-400 italic pl-3 flex items-center gap-2">
+        <i class="fa-regular fa-hand-pointer animate-pulse"></i>
+        點擊下方圖卡以加入句子並發音 (Tap cards to speak and add to sentence)...
+      </p>
+    </div>
+
+    <!-- Right Quick Actions: Backspace, Clear -->
+    <div class="flex items-center space-x-1 flex-shrink-0">
+      <button onclick="removeLastSentenceItem()" title="刪除最後一個 (Backspace)" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 shadow-sm active:scale-95 transition">
+        <i class="fa-solid fa-delete-left text-base"></i>
+      </button>
+      <button onclick="clearSentenceBar()" title="清除全部 (Clear)" class="w-10 h-10 flex items-center justify-center rounded-xl bg-white hover:bg-slate-100 text-slate-500 border border-slate-300 shadow-sm active:scale-95 transition">
+        <i class="fa-solid fa-trash-can text-sm"></i>
+      </button>
+    </div>
+  </section>
+
+  <nav class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs text-slate-600">
+    <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar" id="breadcrumbTrail">
+      <!-- Breadcrumbs injected dynamically -->
+    </div>
+
+    <div class="flex items-center space-x-2 flex-shrink-0">
+      <!-- Back Button -->
+      <button onclick="navigateBack()" id="backBtn" class="hidden items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition">
+        <i class="fa-solid fa-arrow-left"></i>
+        <span>返回 (Back)</span>
+      </button>
+      <!-- Home Button -->
+      <button onclick="navigateToRoot()" class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium transition">
+        <i class="fa-solid fa-house"></i>
+        <span>街市首頁 (Home)</span>
+      </button>
+    </div>
+  </nav>
+
+  <div id="therapistToolbar" class="hidden bg-indigo-900 text-indigo-50 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-indigo-950">
+    <div class="flex items-center gap-2">
+      <span class="bg-indigo-600 px-2 py-0.5 rounded text-[11px] font-bold tracking-wide uppercase">治療師編輯中</span>
+      <span class="hidden sm:inline text-indigo-200">可拖曳卡片調換位置，或按卡片右上角編輯按鈕</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <button onclick="openCardModal(null)" class="bg-emerald-600 hover:bg-emerald-500 text-white px-2.5 py-1 rounded font-medium flex items-center gap-1 transition">
+        <i class="fa-solid fa-plus"></i> 新增圖卡/資料夾
+      </button>
+      <button onclick="exportBoardsJSON()" class="bg-indigo-700 hover:bg-indigo-600 text-white px-2.5 py-1 rounded font-medium flex items-center gap-1 transition">
+        <i class="fa-solid fa-download"></i> 匯出 JSON
+      </button>
+      <label class="bg-indigo-700 hover:bg-indigo-600 text-white px-2.5 py-1 rounded font-medium flex items-center gap-1 cursor-pointer transition">
+        <i class="fa-solid fa-upload"></i> 匯入 JSON
+        <input type="file" id="importJsonInput" accept=".json" class="hidden" onchange="importBoardsJSON(event)">
+      </label>
+      <button onclick="resetToDefaultData()" class="bg-rose-700 hover:bg-rose-600 text-white px-2 py-1 rounded font-medium transition" title="重設為預設資料">
+        <i class="fa-solid fa-rotate-left"></i> 重設
+      </button>
+    </div>
+  </div>
+
+  <main class="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-100 flex flex-col justify-between">
+    <div id="cardsGrid" class="grid gap-3 sm:gap-4 transition-all duration-300">
+      <!-- Cards dynamically rendered here -->
+    </div>
+
+    <!-- Empty Board Notice -->
+    <div id="emptyBoardNotice" class="hidden my-auto text-center py-12 text-slate-400">
+      <i class="fa-regular fa-folder-open text-5xl mb-3 text-slate-300"></i>
+      <p class="text-sm font-semibold">此資料夾尚未有項目</p>
+      <p class="text-xs">請點擊上方「新增圖卡」按鈕加入項目</p>
+    </div>
+
+    <div id="paginationBar" class="mt-4 pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs">
+      <button id="prevPageBtn" onclick="changePage(-1)" class="px-4 py-2 rounded-xl bg-white border border-slate-300 font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none flex items-center gap-2">
+        <i class="fa-solid fa-chevron-left"></i> 上一頁
+      </button>
+      <span id="pageIndicator" class="font-bold text-slate-600 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+        第 1 頁 / 共 1 頁
+      </span>
+      <button id="nextPageBtn" onclick="changePage(1)" class="px-4 py-2 rounded-xl bg-white border border-slate-300 font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none flex items-center gap-2">
+        下一頁 <i class="fa-solid fa-chevron-right"></i>
+      </button>
+    </div>
+  </main>
+
+  <div id="cardModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
+      <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center">
+        <h3 id="cardModalTitle" class="font-bold text-slate-800 text-sm flex items-center gap-2">
+          <i class="fa-solid fa-pen-to-square text-blue-600"></i> 編輯圖卡 (Edit Card)
+        </h3>
+        <button onclick="closeCardModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="cardForm" onsubmit="saveCardForm(event)" class="p-5 space-y-3.5 text-xs">
+        <input type="hidden" id="editCardId">
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">類型 (Type)</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-2 p-2 border rounded-xl cursor-pointer hover:bg-slate-50 bg-white">
+              <input type="radio" name="cardType" value="button" checked onchange="toggleCardTypeOptions()">
+              <span class="font-medium text-slate-700"><i class="fa-solid fa-cube text-amber-500"></i> 單項圖卡 (Item Tile)</span>
+            </label>
+            <label class="flex items-center gap-2 p-2 border rounded-xl cursor-pointer hover:bg-slate-50 bg-white">
+              <input type="radio" name="cardType" value="folder" onchange="toggleCardTypeOptions()">
+              <span class="font-medium text-slate-700"><i class="fa-solid fa-folder text-blue-500"></i> 分類資料夾 (Folder)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">中文名稱 (Cantonese)</label>
+            <input type="text" id="editCardZh" required placeholder="例如: 蔬菜 或 菠菜" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">英文名稱 (English)</label>
+            <input type="text" id="editCardEn" placeholder="e.g. Vegetable / Spinach" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">圖片網址 (Image URL)</label>
+          <div class="flex gap-2">
+            <input type="url" id="editCardImg" placeholder="https://example.com/photo.jpg" class="flex-1 px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <button type="button" onclick="previewImageInput()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 border">預覽</button>
+          </div>
+          <div class="mt-2 flex items-center gap-3">
+            <div class="w-14 h-14 bg-slate-100 rounded-lg border flex items-center justify-center overflow-hidden">
+              <img id="cardModalImgPreview" src="" class="w-full h-full object-cover hidden">
+              <i id="cardModalImgFallback" class="fa-regular fa-image text-slate-400 text-xl"></i>
+            </div>
+            <p class="text-[11px] text-slate-500">支援 CDN 圖像或公開圖檔連結。若加載失敗會顯示文字卡。</p>
+          </div>
+        </div>
+
+        <div id="targetFolderSelectContainer" class="hidden">
+          <label class="block font-semibold text-slate-700 mb-1">關聯子看板 (Target Board)</label>
+          <select id="editCardLoadBoard" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <!-- Populated dynamically -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">背景顏色 (Tile Color)</label>
+          <div class="flex items-center gap-2">
+            <input type="color" id="editCardColor" value="#FFF176" class="h-8 w-12 rounded cursor-pointer border p-0.5">
+            <div class="flex gap-1.5 flex-wrap">
+              <button type="button" onclick="setFormColor('#fff176')" class="w-6 h-6 rounded-full border shadow-sm" style="background-color: #fff176" title="黃色 (食物)"></button>
+              <button type="button" onclick="setFormColor('#bbdefb')" class="w-6 h-6 rounded-full border shadow-sm" style="background-color: #bbdefb" title="藍色 (分類)"></button>
+              <button type="button" onclick="setFormColor('#c8e6c9')" class="w-6 h-6 rounded-full border shadow-sm" style="background-color: #c8e6c9" title="綠色 (動作)"></button>
+              <button type="button" onclick="setFormColor('#ffe0b2')" class="w-6 h-6 rounded-full border shadow-sm" style="background-color: #ffe0b2" title="橙色"></button>
+              <button type="button" onclick="setFormColor('#f8bbd0')" class="w-6 h-6 rounded-full border shadow-sm" style="background-color: #f8bbd0" title="粉紅"></button>
+              <button type="button" onclick="setFormColor('#ffffff')" class="w-6 h-6 rounded-full border shadow-sm bg-white" title="白色"></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-200 flex justify-between">
+          <button type="button" id="deleteCardBtn" onclick="deleteCurrentCard()" class="px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-xl font-bold transition">
+            <i class="fa-solid fa-trash-can"></i> 刪除此圖卡
+          </button>
+          <div class="flex gap-2">
+            <button type="button" onclick="closeCardModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl font-semibold text-slate-600 transition">取消</button>
+            <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md transition">儲存圖卡</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="speechModal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
+      <div class="bg-slate-50 px-5 py-3.5 border-b border-slate-200 flex justify-between items-center">
+        <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-blue-600"></i> 語音設定 (Speech TTS Settings)
+        </h3>
+        <button onclick="closeSpeechModal()" class="text-slate-400 hover:text-slate-600 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1.5">發音語言模式 (Speech Mode)</label>
+          <div class="space-y-2">
+            <label class="flex items-center gap-2.5 p-2.5 border rounded-xl cursor-pointer hover:bg-blue-50/50 bg-white">
+              <input type="radio" name="ttsMode" value="dual" checked onchange="updateTtsSettings()">
+              <div>
+                <span class="font-bold text-slate-800">雙語自動發音 (Cantonese ➔ English)</span>
+                <p class="text-[11px] text-slate-500">先讀廣東話，間隔 0.3 秒後讀英語 (最適合雙語學習)</p>
+              </div>
+            </label>
+            <label class="flex items-center gap-2.5 p-2.5 border rounded-xl cursor-pointer hover:bg-blue-50/50 bg-white">
+              <input type="radio" name="ttsMode" value="cantonese" onchange="updateTtsSettings()">
+              <div>
+                <span class="font-bold text-slate-800">純廣東話 (Cantonese Only)</span>
+                <p class="text-[11px] text-slate-500">只讀卡片中文名稱</p>
+              </div>
+            </label>
+            <label class="flex items-center gap-2.5 p-2.5 border rounded-xl cursor-pointer hover:bg-blue-50/50 bg-white">
+              <input type="radio" name="ttsMode" value="english" onchange="updateTtsSettings()">
+              <div>
+                <span class="font-bold text-slate-800">純英語 (English Only)</span>
+                <p class="text-[11px] text-slate-500">只讀卡片英文名稱</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">粵語聲音來源 (Cantonese Voice Voice)</label>
+          <select id="voiceSelectCantonese" onchange="updateSelectedVoices()" class="w-full px-3 py-2 border rounded-xl bg-white focus:outline-none">
+            <option value="">自動搜尋最合適粵語/香港聲音...</option>
+          </select>
+          <p class="text-[10px] text-slate-500 mt-1">系統將優先挑選 `zh-HK`, `yue`, 或中港台語音庫</p>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">英語聲音來源 (English Voice)</label>
+          <select id="voiceSelectEnglish" onchange="updateSelectedVoices()" class="w-full px-3 py-2 border rounded-xl bg-white focus:outline-none">
+            <option value="">自動搜尋英語聲音 (en-US / en-GB)...</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <div class="flex justify-between mb-1">
+              <label class="font-semibold text-slate-700">語速 (Rate):</label>
+              <span id="rateValLabel" class="text-blue-600 font-bold">0.9x</span>
+            </div>
+            <input type="range" id="speechRateRange" min="0.5" max="1.5" step="0.1" value="0.9" oninput="document.getElementById('rateValLabel').innerText = this.value + 'x'; updateTtsSettings()" class="w-full cursor-pointer">
+          </div>
+          <div>
+            <div class="flex justify-between mb-1">
+              <label class="font-semibold text-slate-700">音調 (Pitch):</label>
+              <span id="pitchValLabel" class="text-blue-600 font-bold">1.0</span>
+            </div>
+            <input type="range" id="speechPitchRange" min="0.7" max="1.3" step="0.1" value="1.0" oninput="document.getElementById('pitchValLabel').innerText = this.value; updateTtsSettings()" class="w-full cursor-pointer">
+          </div>
+        </div>
+
+        <div class="pt-2 flex justify-between items-center">
+          <button type="button" onclick="testCurrentVoice()" class="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-xl font-bold flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-volume-high"></i> 測試發音 (Test)
+          </button>
+          <button type="button" onclick="closeSpeechModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition">
+            完成 (Done)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Embedded board data provided directly from your Cboard JSON export
+    const DEFAULT_BOARDS = [
+      {
+        "id": "6abe7deea6bb41b87362bba8",
+        "name": "街市買餸",
+        "isRoot": true,
+        "tiles": [
+          {"id": "S1LQGA9p7qK-", "label": "蔬菜 Vegetable", "type": "folder", "loadBoard": "6abe7f56a6bb41b87362bd5e", "image": "https://cdncboard.azureedge.net/cblob/_1790869109_1d943a49a0d1_%E8%94%AC%E8%8F%9C.jpg", "backgroundColor": "rgb(187, 222, 251)"},
+          {"id": "1GuFatHcX", "label": "菇 Mushroom", "type": "folder", "loadBoard": "6ac25c37a6bb41b8736618e0", "image": "https://cdncboard.azureedge.net/cblob/_1791124440_1d943a49a0d1_images-4.jpeg", "backgroundColor": "#bbdefb"},
+          {"id": "Hy-Y0OzBW", "label": "豬肉 Pork", "type": "folder", "loadBoard": "6ac22772e9b569f4dc242523", "image": "https://cdncboard.azureedge.net/cblob/_1791124217_1d943a49a0d1_14-01%E8%B1%AC%E8%82%89%E6%98%AF%E5%B8%B8%E8%A6%8B%E7%9A%84%E8%82%89%E9%A1%9E_n.jpg", "backgroundColor": "#bbdefb"},
+          {"id": "aDemihk0z", "label": "牛 Beef", "type": "folder", "loadBoard": "6ac25d97e9b569f4dc244fc0", "image": "https://cdncboard.azureedge.net/cblob/_1791124268_1d943a49a0d1_all_beef.webp", "backgroundColor": "#bbdefb"},
+          {"id": "vKl5c8sEL", "label": "雞 Chicken", "type": "folder", "loadBoard": "6ac26203a6bb41b873661ec5", "image": "https://cdncboard.azureedge.net/cblob/_1791124314_1d943a49a0d1_6ace73ac8140ab9f.jpg", "backgroundColor": "#bbdefb"},
+          {"id": "XrE_XweW4", "label": "羊 Mutton", "type": "folder", "loadBoard": "6ac25eba9707f685afb8daeb", "image": "https://cdncboard.azureedge.net/cblob/_1791124346_cdfc356103b3_images-3.jpeg", "backgroundColor": "#bbdefb"},
+          {"id": "7omQKIZs4", "label": "海鮮 Seafood", "type": "folder", "loadBoard": "6ac22843e9b569f4dc2425bb", "image": "https://cdncboard.azureedge.net/cblob/_1791120858_0361109c3372__116559066_cbc41cd5-358d-40e4-84f2-7d00042cbad0.jpg.webp", "backgroundColor": "#bbdefb"},
+          {"id": "KBEAjHU3c", "label": "燒味 Siu Mei", "type": "folder", "loadBoard": "6ac24964e9b569f4dc243e5a", "image": "https://cdncboard.azureedge.net/cblob/_1791120876_1d943a49a0d1_5e3434fbbd5f4161baa4b6d74b674969_hanging-siu-mei-roasted-meat.jpg", "backgroundColor": "#bbdefb"},
+          {"id": "PffTZ9om1", "label": "生果 Fruit", "type": "folder", "loadBoard": "6ac24888e9b569f4dc243cec", "image": "https://cdncboard.azureedge.net/cblob/_1791120869_1d943a49a0d1_delicious-rainbow-fruits-royalty-free-image-1730693556.jpg.avif", "backgroundColor": "#bbdefb"},
+          {"id": "tfg8FUPO0", "label": "冷凍食品 Frozen food", "type": "folder", "loadBoard": "6ac24de9e9b569f4dc244215", "image": "https://cdncboard.azureedge.net/cblob/_1791120886_cdfc356103b3_content_6dde7bf3-c6ab-48bd-883d-878d72e49082.avif", "backgroundColor": "#bbdefb"}
+        ]
+      },
+      {
+        "id": "6abe7f56a6bb41b87362bd5e",
+        "name": "蔬菜",
+        "tiles": [
+          {"id": "rkZSf0q6XqK-", "label": "西芹 Celery", "image": "https://cdncboard.azureedge.net/cblob/_1790908577_1d943a49a0d1_gemini_generated_image_siqcxksiqcxksiqc.jpg", "backgroundColor": "#fff176"},
+          {"id": "H2lyWFXhQ", "label": "西洋菜 Watercress", "image": "https://cdncboard.azureedge.net/cblob/_1790908564_0361109c3372_gemini_generated_image_8amvyn8amvyn8amv.jpg", "backgroundColor": "#fff176"},
+          {"id": "rByniBYaI", "label": "芥蘭 Chinese Kale", "image": "https://cdncboard.azureedge.net/cblob/_1790908674_0361109c3372_gemini_generated_image_jw07pjw07pjw07pj.jpg", "backgroundColor": "#fff176"},
+          {"id": "2yf0bn2zN", "label": "津菜 Tientsin cabbage", "image": "https://cdncboard.azureedge.net/cblob/_1790908270_0361109c3372_gemini_generated_image_yrl3vhyrl3vhyrl3.jpg", "backgroundColor": "#fff176"},
+          {"id": "3u2czkgOa", "label": "娃娃菜 Mini Tientsin Cabbage", "image": "https://cdncboard.azureedge.net/cblob/_1790911433_1d943a49a0d1_gemini_generated_image_61uop861uop861uo.jpg", "backgroundColor": "#fff176"},
+          {"id": "VuHt47N4p", "label": "豆苗 Pea Shoot", "image": "https://cdncboard.azureedge.net/cblob/_1790918906_1d943a49a0d1_gemini_generated_image_5gwjpy5gwjpy5gwj.jpg", "backgroundColor": "#fff176"},
+          {"id": "vxKrKJXa2", "label": "茼蒿 Garland chrysanthemum", "image": "https://cdncboard.azureedge.net/cblob/_1790919024_0361109c3372_gemini_generated_image_pjvfuppjvfuppjvf.jpg", "backgroundColor": "#fff176"},
+          {"id": "tLAZfCIrR", "label": "菜心 Flowering Chinese Cabbage", "image": "https://cdncboard.azureedge.net/cblob/_1790919069_1d943a49a0d1_gemini_generated_image_kxzenxkxzenxkxze.jpg", "backgroundColor": "#fff176"},
+          {"id": "eO8UnTZ3O", "label": "椰菜 Cabbage", "image": "https://cdncboard.azureedge.net/cblob/_1790919105_cdfc356103b3_gemini_generated_image_luexmsluexmsluex.jpg", "backgroundColor": "#fff176"},
+          {"id": "8EgO2nGwl", "label": "通菜 Water Spinach", "image": "https://cdncboard.azureedge.net/cblob/_1790920418_cdfc356103b3_gemini_generated_image_2jh3312jh3312jh3.jpg", "backgroundColor": "#fff176"},
+          {"id": "m5LtbLxZQ", "label": "西蘭花 Brocoli", "image": "https://cdncboard.azureedge.net/cblob/_1790920377_0361109c3372_gemini_generated_image_f24t3qf24t3qf24t.jpg", "backgroundColor": "#fff176"},
+          {"id": "2vMp0gWOj", "label": "椰菜花 Cauliflower", "image": "https://cdncboard.azureedge.net/cblob/_1790920231_1d943a49a0d1_gemini_generated_image_skhgjiskhgjiskhg.jpg", "backgroundColor": "#fff176"},
+          {"id": "SdfVPyQ5H", "label": "韭菜 Chinese Chive", "image": "https://cdncboard.azureedge.net/cblob/_1790920441_0361109c3372_gemini_generated_image_1nwdsz1nwdsz1nwd.jpg", "backgroundColor": "#fff176"},
+          {"id": "Iu0zNGwBs", "label": "西生菜 Iceburg lettuce", "image": "https://cdncboard.azureedge.net/cblob/_1790920758_cdfc356103b3_gemini_generated_image_bgi38sbgi38sbgi3.jpg", "backgroundColor": "#fff176"},
+          {"id": "qs9u8xl1B", "label": "韭菜花 Bud chive", "image": "https://cdncboard.azureedge.net/cblob/_1790920780_1d943a49a0d1_gemini_generated_image_e5bbhoe5bbhoe5bb.jpg", "backgroundColor": "#fff176"},
+          {"id": "GrFmXh8rx", "label": "苦瓜 Bitter cucumber", "image": "https://cdncboard.azureedge.net/cblob/_1790930109_1d943a49a0d1_gemini_generated_image_sv75oesv75oesv75.jpg", "backgroundColor": "#fff176"},
+          {"id": "MwxCY2vxj", "label": "青毛豆 Green Soybean", "image": "https://cdncboard.azureedge.net/cblob/_1790920962_1d943a49a0d1_gemini_generated_image_nvpiz7nvpiz7nvpi.jpg", "backgroundColor": "#fff176"},
+          {"id": "6ZpfvFion", "label": "矮瓜 eggplant", "image": "https://cdncboard.azureedge.net/cblob/_1790920985_0361109c3372_gemini_generated_image_7rjvdq7rjvdq7rjv.jpg", "backgroundColor": "#fff176"},
+          {"id": "nqJtipOb8", "label": "青瓜 Cucumber", "image": "https://cdncboard.azureedge.net/cblob/_1790930072_cdfc356103b3_gemini_generated_image_ui4p6xui4p6xui4p.jpg", "backgroundColor": "#fff176"},
+          {"id": "wkNJvYSld", "label": "節瓜 Hairy gourd", "image": "https://cdncboard.azureedge.net/cblob/_1790930150_0361109c3372_gemini_generated_image_8xahru8xahru8xah.jpg", "backgroundColor": "#fff176"},
+          {"id": "C-JQxR6Ng", "label": "甜豆 sweet pea", "image": "https://cdncboard.azureedge.net/cblob/_1790930175_0361109c3372_gemini_generated_image_klev9bklev9bklev.jpg", "backgroundColor": "#fff176"},
+          {"id": "qJYHoymYd", "label": "蘆筍 Asparagus", "image": "https://cdncboard.azureedge.net/cblob/_1790930277_cdfc356103b3_gemini_generated_image_klev9bklev9bklev-2.jpg", "backgroundColor": "#fff176"},
+          {"id": "IWP3AZhJh", "label": "蘿蔔 Radish", "image": "https://cdncboard.azureedge.net/cblob/_1790930319_0361109c3372_gemini_generated_image_4j7xgt4j7xgt4j7x-4.jpg", "backgroundColor": "#fff176"},
+          {"id": "QWLDrI9Pu", "label": "馬鈴薯 potato", "image": "https://cdncboard.azureedge.net/cblob/_1790930336_1d943a49a0d1_gemini_generated_image_4j7xgt4j7xgt4j7x-3.jpg", "backgroundColor": "#fff176"},
+          {"id": "0C_gGxHjY", "label": "蓮藕 Lotus root", "image": "https://cdncboard.azureedge.net/cblob/_1790930376_0361109c3372_gemini_generated_image_4j7xgt4j7xgt4j7x-2.jpg", "backgroundColor": "#fff176"},
+          {"id": "DxyXx3XfM", "label": "韭王 Blanching chive", "image": "https://cdncboard.azureedge.net/cblob/_1790930447_1d943a49a0d1_gemini_generated_image_4j7xgt4j7xgt4j7x.jpg", "backgroundColor": "#fff176"},
+          {"id": "FN5yrNrk8", "label": "蕃茄 Tomato", "image": "https://cdncboard.azureedge.net/cblob/_1790930693_0361109c3372_gemini_generated_image_tnkfbutnkfbutnkf-2.jpg", "backgroundColor": "#fff176"},
+          {"id": "0nRNY84n8", "label": "粟米 Corn", "image": "https://cdncboard.azureedge.net/cblob/_1790930708_1d943a49a0d1_gemini_generated_image_tnkfbutnkfbutnkf.jpg", "backgroundColor": "#fff176"},
+          {"id": "JOeF1hyCo", "label": "唐芹 Chinese Celery", "image": "https://cdncboard.azureedge.net/cblob/_1790931807_0361109c3372_gemini_generated_image_y95a33y95a33y95a.jpg", "backgroundColor": "#fff176"},
+          {"id": "ijFCd3ubC", "label": "白菜 Chinese White Cabbage", "image": "https://cdncboard.azureedge.net/cblob/_1790931868_cdfc356103b3_gemini_generated_image_y95a33y95a33y95a-2.jpg", "backgroundColor": "#fff176"},
+          {"id": "vV1CccCpx", "label": "芥菜 Mustard leaf", "image": "https://cdncboard.azureedge.net/cblob/_1790931894_1d943a49a0d1_gemini_generated_image_y95a33y95a33y95a-3.jpg", "backgroundColor": "#fff176"},
+          {"id": "--19x9TsJ", "label": "枸杞 Matrimony vine", "image": "https://cdncboard.azureedge.net/cblob/_1790931996_cdfc356103b3_gemini_generated_image_y95a33y95a33y95a-4.jpg", "backgroundColor": "#fff176"},
+          {"id": "z45VQQAbq", "label": "小棠菜 Green Chinese Cabbage", "image": "https://cdncboard.azureedge.net/cblob/_1790932037_cdfc356103b3_gemini_generated_image_y95a33y95a33y95a-5.jpg", "backgroundColor": "#fff176"},
+          {"id": "Pix6XmgOV", "label": "油麥菜 Indian lettuce", "image": "https://cdncboard.azureedge.net/cblob/_1790932077_0361109c3372_gemini_generated_image_y95a33y95a33y95a-6.jpg", "backgroundColor": "#fff176"},
+          {"id": "cTXYnhnRA", "label": "皇帝菜 emperor vegetable", "image": "https://cdncboard.azureedge.net/cblob/_1790932104_1d943a49a0d1_gemini_generated_image_y95a33y95a33y95a-7.jpg", "backgroundColor": "#fff176"},
+          {"id": "bzl3aK920", "label": "莧菜 Chinese spinach", "image": "https://cdncboard.azureedge.net/cblob/_1790932178_0361109c3372_gemini_generated_image_y95a33y95a33y95a-8.jpg", "backgroundColor": "#fff176"},
+          {"id": "uY8lB4acf", "label": "馬莧菜 Wild amaranth", "image": "https://cdncboard.azureedge.net/cblob/_1790932213_0361109c3372_gemini_generated_image_y95a33y95a33y95a-9.jpg", "backgroundColor": "#fff176"},
+          {"id": "oNWcSMEG9", "label": "唐生菜 Chinese lettuce", "image": "https://cdncboard.azureedge.net/cblob/_1790932235_0361109c3372_gemini_generated_image_y95a33y95a33y95a-10.jpg", "backgroundColor": "#fff176"},
+          {"id": "GhfEkP92m", "label": "菠菜 spinach", "image": "https://cdncboard.azureedge.net/cblob/_1790933026_1d943a49a0d1_gemini_generated_image_w8sizlw8sizlw8si.jpg", "backgroundColor": "#fff176"},
+          {"id": "xCgWqQUos", "label": "冬瓜 Wax gourd", "image": "https://cdncboard.azureedge.net/cblob/_1790933071_cdfc356103b3_gemini_generated_image_w8sizlw8sizlw8si-2.jpg", "backgroundColor": "#fff176"},
+          {"id": "fwV11cpPl", "label": "佛手瓜 Chayote", "image": "https://cdncboard.azureedge.net/cblob/_1790933157_1d943a49a0d1_gemini_generated_image_w8sizlw8sizlw8si-3.jpg", "backgroundColor": "#fff176"},
+          {"id": "lg7ySlc_U", "label": "豌豆 Garden pea", "image": "https://cdncboard.azureedge.net/cblob/_1790933181_0361109c3372_gemini_generated_image_w8sizlw8sizlw8si-4.jpg", "backgroundColor": "#fff176"},
+          {"id": "qjpsAUhsL", "label": "絲瓜 angled luffa", "image": "https://cdncboard.azureedge.net/cblob/_1790933199_0361109c3372_gemini_generated_image_w8sizlw8sizlw8si-5.jpg", "backgroundColor": "#fff176"},
+          {"id": "UCj1i99Fh", "label": "豆角 Yard-long bean", "image": "https://cdncboard.azureedge.net/cblob/_1790933658_0361109c3372_gemini_generated_image_74o8xa74o8xa74o8.jpg", "backgroundColor": "#fff176"},
+          {"id": "MjqfhIgXW", "label": "翠玉瓜 Zucchini", "image": "https://cdncboard.azureedge.net/cblob/_1790933773_1d943a49a0d1_gemini_generated_image_hijceghijceghijc.jpg", "backgroundColor": "#fff176"},
+          {"id": "p60PGeTrC", "label": "四季豆 snap bean", "image": "https://cdncboard.azureedge.net/cblob/_1790933879_1d943a49a0d1_gemini_generated_image_wj5tu9wj5tu9wj5t.jpg", "backgroundColor": "#fff176"},
+          {"id": "mVn93QGsel", "label": "雞蛋 Egg", "image": "https://cdncboard.azureedge.net/cblob/_1791120624_cdfc356103b3_generated_image-61.png", "backgroundColor": "#fff176"},
+          {"id": "D6R6qMOM0", "label": "燈籠椒 Sweet pepper", "image": "https://cdncboard.azureedge.net/cblob/_1790934838_cdfc356103b3_gemini_generated_image_bfgup8bfgup8bfgu-5.jpg", "backgroundColor": "#fff176"},
+          {"id": "-3r18JOii", "label": "豆腐 Tofu", "image": "https://cdncboard.azureedge.net/cblob/_1791120616_cdfc356103b3_generated_image-60.png", "backgroundColor": "#fff176"}
+        ]
+      },
+      {
+        "id": "6ac25c37a6bb41b8736618e0",
+        "name": "菇類",
+        "tiles": [
+          {"id": "DFVhCBPXq", "label": "鮮冬菇 Fresh Shiitake mushroom", "image": "https://cdncboard.azureedge.net/cblob/_1791122543_cdfc356103b3_gemini_generated_image_zh528nzh528nzh52.jpg", "backgroundColor": "#fff176"},
+          {"id": "ZNFQW3KgQ", "label": "蘑菇 Button mushroom", "image": "https://cdncboard.azureedge.net/cblob/_1791122563_0361109c3372_gemini_generated_image_w8sizlw8sizlw8si-9.jpg", "backgroundColor": "#fff176"},
+          {"id": "DTLWu4rz8", "label": "秀珍菇 Small oyster mushroom", "image": "https://cdncboard.azureedge.net/cblob/_1791122595_1d943a49a0d1_gemini_generated_image_bfgup8bfgup8bfgu.jpg", "backgroundColor": "#fff176"},
+          {"id": "VVMC9CofA", "label": "鮑魚菇 Abalone mushroom", "image": "https://cdncboard.azureedge.net/cblob/_1791122619_1d943a49a0d1_gemini_generated_image_7g2gqp7g2gqp7g2g.jpg", "backgroundColor": "#fff176"},
+          {"id": "lM2Rh7Tqy", "label": "金菇 Needle mushroom", "image": "https://cdncboard.azureedge.net/cblob/_1791122648_1d943a49a0d1_gemini_generated_image_bfgup8bfgup8bfgu-2.jpg", "backgroundColor": "#fff176"},
+          {"id": "v_ASmFL6S", "label": "雞腿菇 Shaggy mane", "image": "https://cdncboard.azureedge.net/cblob/_1791122673_1d943a49a0d1_gemini_generated_image_bfgup8bfgup8bfgu-3.jpg", "backgroundColor": "#fff176"},
+          {"id": "c0hUWjKlJ", "label": "草菇 Straw mushroom", "image": "https://cdncboard.azureedge.net/cblob/_1791122697_1d943a49a0d1_gemini_generated_image_bfgup8bfgup8bfgu-4.jpg", "backgroundColor": "#fff176"}
+        ]
+      },
+      {
+        "id": "6ac22772e9b569f4dc242523",
+        "name": "肉類",
+        "tiles": [
+          {"id": "cHpYuynVk", "label": "豬肉 Pork", "image": "https://cdncboard.azureedge.net/cblob/_1791116616_cdfc356103b3_generated_image-40.png", "backgroundColor": "#fff176"},
+          {"id": "uumzwXTie", "label": "豬扒 Pork chop", "image": "https://cdncboard.azureedge.net/cblob/_1791109881_cdfc356103b3_generated_image-23.png", "backgroundColor": "#fff176"},
+          {"id": "7rpSg4N4x", "label": "腩排 Pork loinrib", "image": "https://cdncboard.azureedge.net/cblob/_1791109900_0361109c3372_generated_image-24.png", "backgroundColor": "#fff176"},
+          {"id": "oclb32QDh", "label": "免治豬肉 Minced pork", "image": "https://cdncboard.azureedge.net/cblob/_1791109920_cdfc356103b3_generated_image-25.png", "backgroundColor": "#fff176"},
+          {"id": "fFlKLtEAl", "label": "豬柳 Pork tenderloin", "image": "https://cdncboard.azureedge.net/cblob/_1791109936_1d943a49a0d1_generated_image-26.png", "backgroundColor": "#fff176"},
+          {"id": "uweiV7P-T", "label": "豬腩肉 Pork belly", "image": "https://cdncboard.azureedge.net/cblob/_1791109963_cdfc356103b3_generated_image-28.png", "backgroundColor": "#fff176"},
+          {"id": "wBZcBZCq2", "label": "梅頭 Pork collar butt", "image": "https://cdncboard.azureedge.net/cblob/_1791111890_cdfc356103b3_generated_image-29.png", "backgroundColor": "#fff176"},
+          {"id": "pS2HQxglA", "label": "排骨 Pork sparerib", "image": "https://cdncboard.azureedge.net/cblob/_1791109944_0361109c3372_generated_image-27.png", "backgroundColor": "#fff176"},
+          {"id": "7Byp3JZ8G", "label": "豬𦟌 Pork shin", "image": "https://cdncboard.azureedge.net/cblob/_1791116699_0361109c3372_generated_image-42.png", "backgroundColor": "#fff176"},
+          {"id": "EVuKXCmNI", "label": "豬肋骨 Pork Lib", "image": "https://cdncboard.azureedge.net/cblob/_1791116811_0361109c3372_generated_image-47.png", "backgroundColor": "#fff176"},
+          {"id": "laAQUaT3L", "label": "豬軟骨 Pork cartilage", "image": "https://cdncboard.azureedge.net/cblob/_1791116851_1d943a49a0d1_gemini_generated_image_21v2ir21v2ir21v2.jpg", "backgroundColor": "#fff176"},
+          {"id": "yMIdFsgEj", "label": "豬踭 Pork shoulder", "image": "https://cdncboard.azureedge.net/cblob/_1791116759_cdfc356103b3_generated_image-44.png", "backgroundColor": "#fff176"},
+          {"id": "LMiWqx-Sr", "label": "豬頸肉 Pork cheek", "image": "https://cdncboard.azureedge.net/cblob/_1791116783_cdfc356103b3_generated_image-45.png", "backgroundColor": "#fff176"},
+          {"id": "PUh2g2sHZ", "label": "豬手 Pig hock", "image": "https://cdncboard.azureedge.net/cblob/_1791116831_1d943a49a0d1_gemini_generated_image_qy0l0rqy0l0rqy0l.jpg", "backgroundColor": "#fff176"},
+          {"id": "s8urdFB8E", "label": "瘦肉 Lean Pork", "image": "https://cdncboard.azureedge.net/cblob/_1791116795_cdfc356103b3_generated_image-46.png", "backgroundColor": "#fff176"}
+        ]
+      },
+      {
+        "id": "6ac25d97e9b569f4dc244fc0",
+        "name": "牛類",
+        "tiles": [
+          {"id": "FhQsL15qm", "label": "牛肉 Beef", "image": "https://cdncboard.azureedge.net/cblob/_1791122886_0361109c3372_generated_image-41.png", "backgroundColor": "#fff176"},
+          {"id": "DfqCIDlXE", "label": "牛尾 Ox tail", "image": "https://cdncboard.azureedge.net/cblob/_1791122910_0361109c3372_generated_image-30.png", "backgroundColor": "#fff176"},
+          {"id": "OcIHC76pp", "label": "牛扒 Beef Steak", "image": "https://cdncboard.azureedge.net/cblob/_1791122932_1d943a49a0d1_generated_image-31.png", "backgroundColor": "#fff176"},
+          {"id": "xuzFJTrhf", "label": "牛𦟌 Beef Shin", "image": "https://cdncboard.azureedge.net/cblob/_1791122969_cdfc356103b3_generated_image-33.png", "backgroundColor": "#fff176"},
+          {"id": "6kJs6nhPi", "label": "肥牛肉 Marble beef", "image": "https://cdncboard.azureedge.net/cblob/_1791123028_0361109c3372_gemini_generated_image_xa2l64xa2l64xa2l.jpg", "backgroundColor": "#fff176"},
+          {"id": "3XU9tc1l7", "label": "牛腩 Beef flank", "image": "https://cdncboard.azureedge.net/cblob/_1791123066_0361109c3372_gemini_generated_image_o59upro59upro59u.jpg", "backgroundColor": "#fff176"},
+          {"id": "r-9Lhlfpq", "label": "牛仔骨 Veal rib", "image": "https://cdncboard.azureedge.net/cblob/_1791123098_0361109c3372_gemini_generated_image_k3jddmk3jddmk3jd.jpg", "backgroundColor": "#fff176"}
+        ]
+      },
+      {
+        "id": "6ac26203a6bb41b873661ec5",
+        "name": "雞",
+        "tiles": [
+          {"id": "jW_blTITb", "label": "雞扒 Chicken steak", "image": "https://cdncboard.azureedge.net/cblob/_1791124026_1d943a49a0d1_generated_image-36.png", "backgroundColor": "#fff176"},
+          {"id": "bKgj3qzKy", "label": "雞腿 Chicken leg", "image": "https://cdncboard.azureedge.net/cblob/_1791124048_0361109c3372_generated_image-37.png", "backgroundColor": "#fff176"},
+          {"id": "ajgQ6lqHw0", "label": "雞鎚 Drumstick", "image": "https://cdncboard.azureedge.net/cblob/_1791124063_1d943a49a0d1_generated_image-38.png", "backgroundColor": "#fff176"},
+          {"id": "Nx3EBR7yO", "label": "雞翼 Chicken wing", "image": "https://cdncboard.azureedge.net/cblob/_1791124096_1d943a49a0d1_generated_image-39.png", "backgroundColor": "#fff176"}
+        ]
+      },
+      {
+        "id": "6ac25eba9707f685afb8daeb",
+        "name": "羊",
+        "tiles": [
+          {"id": "jkxZZMN0k", "label": "羊肉 Mutton", "image": "https://cdncboard.azureedge.net/cblob/_1791123154_0361109c3372_generated_image-32.png", "backgroundColor": "#fff176"},
+          {"id": "FkRxTrXbu", "label": "羊扒 Mutton rack", "image": "https://cdncboard.azureedge.net/cblob/_1791123193_0361109c3372_generated_image-34.png", "backgroundColor": "#fff176"},
+          {"id": "3cd0A--9Q", "label": "羊腩 Mutton flank", "image": "https://cdncboard.azureedge.net/cblob/_1791123179_cdfc356103b3_gemini_generated_image_7gyj2b7gyj2b7gyj.jpg", "backgroundColor": "#fff176"}
+        ]
+      },
+      {
+        "id": "6ac22843e9b569f4dc2425bb",
+        "name": "海鮮與魚類",
+        "tiles": [
+          {"id": "88DT2WHz1", "label": "木棉 Bigeye", "image": "https://cdncboard.azureedge.net/cblob/_1791109366_cdfc356103b3_generated_image-2.png", "backgroundColor": "#fff176"},
+          {"id": "bIRM6xuJ_", "label": "紅衫 Golden thread", "image": "https://cdncboard.azureedge.net/cblob/_1791109387_1d943a49a0d1_generated_image-6.png", "backgroundColor": "#fff176"},
+          {"id": "j4c_4wBhbt", "label": "桂花魚 Mandarin fish", "image": "https://cdncboard.azureedge.net/cblob/_1791109408_1d943a49a0d1_generated_image-7.png", "backgroundColor": "#fff176"},
+          {"id": "Yi1yfl8cm", "label": "烏頭 Grey mullet", "image": "https://cdncboard.azureedge.net/cblob/_1791109431_0361109c3372_generated_image-8.png", "backgroundColor": "#fff176"},
+          {"id": "Ky9ECihI8", "label": "黃花魚 Yellow croaker", "image": "https://cdncboard.azureedge.net/cblob/_1791109445_0361109c3372_generated_image-9.png", "backgroundColor": "#fff176"},
+          {"id": "Ey31Ez9z8", "label": "鯇魚 Grass carp", "image": "https://cdncboard.azureedge.net/cblob/_1791109481_0361109c3372_generated_image-5.png", "backgroundColor": "#fff176"},
+          {"id": "jjieNG9hJ", "label": "花蝦 Striped prawn", "image": "https://cdncboard.azureedge.net/cblob/_1791109498_cdfc356103b3_generated_image.png", "backgroundColor": "#fff176"},
+          {"id": "7BKZgELhS", "label": "白飯魚 Noodlefish", "image": "https://cdncboard.azureedge.net/cblob/_1791109519_0361109c3372_generated_image-10.png", "backgroundColor": "#fff176"},
+          {"id": "MiB30jESd", "label": "白鱔 Japanese eel", "image": "https://cdncboard.azureedge.net/cblob/_1791109549_cdfc356103b3_generated_image-11.png", "backgroundColor": "#fff176"},
+          {"id": "CK2P0a9hA", "label": "老虎斑 Brown-marbled grouper", "image": "https://cdncboard.azureedge.net/cblob/_1791109582_0361109c3372_generated_image-12.png", "backgroundColor": "#fff176"},
+          {"id": "Jk_9JV8Ez", "label": "衫斑 Camouflage grouper", "image": "https://cdncboard.azureedge.net/cblob/_1791109611_cdfc356103b3_generated_image-22.png", "backgroundColor": "#fff176"},
+          {"id": "oERQQGj2k", "label": "䱽魚 Pomfret", "image": "https://cdncboard.azureedge.net/cblob/_1791109633_0361109c3372_generated_image-13.png", "backgroundColor": "#fff176"},
+          {"id": "rjWnZ9bMJ", "label": "撻沙 Tonguesole", "image": "https://cdncboard.azureedge.net/cblob/_1791109709_1d943a49a0d1_generated_image-14.png", "backgroundColor": "#fff176"},
+          {"id": "jEI6kN7tf", "label": "絞鯪魚肉 Minced mud carp", "image": "https://cdncboard.azureedge.net/cblob/_1791109757_1d943a49a0d1_generated_image-15.png", "backgroundColor": "#fff176"},
+          {"id": "9IvfI9QOd", "label": "紅蟹 Red crab", "image": "https://cdncboard.azureedge.net/cblob/_1791109770_cdfc356103b3_generated_image-16.png", "backgroundColor": "#fff176"},
+          {"id": "LhLw-ViB6", "label": "三點蟹 Three-spotted crab", "image": "https://cdncboard.azureedge.net/cblob/_1791109782_0361109c3372_generated_image-17.png", "backgroundColor": "#fff176"},
+          {"id": "B31y4u9J7", "label": "花蟹 Flower crab", "image": "https://cdncboard.azureedge.net/cblob/_1791109820_cdfc356103b3_generated_image-20.png", "backgroundColor": "#fff176"},
+          {"id": "b3u3a1FKdy", "label": "瀨尿蝦 Mantis shrimp", "image": "https://cdncboard.azureedge.net/cblob/_1791109808_cdfc356103b3_generated_image-19.png", "backgroundColor": "#fff176"},
+          {"id": "A5dhWLNWp", "label": "基圍蝦 Greasyback shrimp", "image": "https://cdncboard.azureedge.net/cblob/_1791109829_0361109c3372_generated_image-21.png", "backgroundColor": "#fff176"},
+          {"id": "6Exq6zwPwX", "label": "龍蝦 Lobster", "image": "https://cdncboard.azureedge.net/cblob/_1791109792_1d943a49a0d1_generated_image-18.png", "backgroundColor": "#fff176"}
+        ]
+      },
+      {
+        "id": "6ac24964e9b569f4dc243e5a",
+        "name": "燒味",
+        "tiles": [
+          {"id": "_1xT-LSwY", "label": "叉燒 Barbecued pork", "image": "https://cdncboard.azureedge.net/cblob/_1791118405_0361109c3372_gemini_generated_image_fqbwxofqbwxofqbw.jpg", "backgroundColor": "#fff176"},
+          {"id": "feiW3fkeF", "label": "燒肉 Roasted pork", "image": "https://cdncboard.azureedge.net/cblob/_1791118474_1d943a49a0d1_gemini_generated_image_7ifkjh7ifkjh7ifk.jpg", "backgroundColor": "#fff176"},
+          {"id": "Ec-78f3Jq", "label": "燒鵝 Roasted goose", "image": "https://cdncboard.azureedge.net/cblob/_1791118518_0361109c3372_gemini_generated_image_g450swg450swg450.jpg", "backgroundColor": "#fff176"},
+          {"id": "KoqqUF9JU", "label": "白切雞 Poached Chicken", "image": "https://cdncboard.azureedge.net/cblob/_1791118568_cdfc356103b3_gemini_generated_image_ukjtdukjtdukjtdu.jpg", "backgroundColor": "#fff176"},
+          {"id": "_AueV07i2", "label": "燒乳豬 Roasted suckling pig", "image": "https://cdncboard.azureedge.net/cblob/_1791118657_cdfc356103b3_gemini_generated_image_sqkhnxsqkhnxsqkh.jpg", "backgroundColor": "#fff176"},
+          {"id": "rb5Jodjih", "label": "滷水雞翼 Marinated chicken wing", "image": "https://cdncboard.azureedge.net/cblob/_1791118813_cdfc356103b3_gemini_generated_image_pi4rlipi4rlipi4r.jpg", "backgroundColor": "#fff176"},
+          {"id": "POf3kRHCr", "label": "燒乳鴿 Roasted pigeon", "image": "https://cdncboard.azureedge.net/cblob/_1791118773_1d943a49a0d1_gemini_generated_image_smzcajsmzcajsmzc.jpg", "backgroundColor": "#fff176"},
+          {"id": "JV2K3tGPA", "label": "滷水鵝 Marinated goose", "image": "https://cdncboard.azureedge.net/cblob/_1791118739_cdfc356103b3_gemini_generated_image_8lu8s8lu8s8lu8s8.jpg", "backgroundColor": "#fff176"}
+        ]
+      },
+      {
+        "id": "6ac24888e9b569f4dc243cec",
+        "name": "生果",
+        "tiles": [
+          {"id": "bTSaNUVqU", "label": "士多啤梨 Strawberry", "image": "https://cdncboard.azureedge.net/cblob/_1791117471_cdfc356103b3_gemini_generated_image_w3snfhw3snfhw3sn-9.jpg", "backgroundColor": "#fff176"},
+          {"id": "ABmLudH4y", "label": "奇異果 Kiwi", "image": "https://cdncboard.azureedge.net/cblob/_1791117493_cdfc356103b3_gemini_generated_image_w3snfhw3snfhw3sn-8.jpg", "backgroundColor": "#fff176"},
+          {"id": "WwwdcIupi", "label": "青蘋果 Green Apple", "image": "https://cdncboard.azureedge.net/cblob/_1791117516_1d943a49a0d1_gemini_generated_image_w3snfhw3snfhw3sn-7.jpg", "backgroundColor": "#fff176"},
+          {"id": "zGtSCB4Te", "label": "芒果 Mango", "image": "https://cdncboard.azureedge.net/cblob/_1791117529_1d943a49a0d1_gemini_generated_image_w3snfhw3snfhw3sn-6.jpg", "backgroundColor": "#fff176"},
+          {"id": "wolMQq-Ny", "label": "紅桑子 Rasberry", "image": "https://cdncboard.azureedge.net/cblob/_1791117547_0361109c3372_gemini_generated_image_w3snfhw3snfhw3sn-5.jpg", "backgroundColor": "#fff176"},
+          {"id": "DYkqgc4df", "label": "提子 Grape", "image": "https://cdncboard.azureedge.net/cblob/_1791117558_1d943a49a0d1_gemini_generated_image_w3snfhw3snfhw3sn-4.jpg", "backgroundColor": "#fff176"},
+          {"id": "rmTtSD1Fy", "label": "桃 Peach", "image": "https://cdncboard.azureedge.net/cblob/_1791117571_cdfc356103b3_gemini_generated_image_w3snfhw3snfhw3sn-3.jpg", "backgroundColor": "#fff176"},
+          {"id": "8Y0rH92pe", "label": "香蕉 Banana", "image": "https://cdncboard.azureedge.net/cblob/_1791117586_0361109c3372_gemini_generated_image_w3snfhw3snfhw3sn-2.jpg", "backgroundColor": "#fff176"},
+          {"id": "nSHQwArAVT", "label": "黑莓 Blackberry", "image": "https://cdncboard.azureedge.net/cblob/_1791117598_cdfc356103b3_gemini_generated_image_w3snfhw3snfhw3sn.jpg", "backgroundColor": "#fff176"}
+        ]
+      },
+      {
+        "id": "6ac24de9e9b569f4dc244215",
+        "name": "冷凍食品",
+        "tiles": [
+          {"id": "ISiMvjErE", "label": "蟹柳 Imitation crab meat", "image": "https://cdncboard.azureedge.net/cblob/_1791119686_0361109c3372_generated_image-48.png", "backgroundColor": "#fff176"},
+          {"id": "Y1gqenAIj", "label": "墨魚丸 cuttlefish ball", "image": "https://cdncboard.azureedge.net/cblob/_1791119819_cdfc356103b3_generated_image-49.png", "backgroundColor": "#fff176"},
+          {"id": "BhNu_Nmek", "label": "火腿 ham", "image": "https://cdncboard.azureedge.net/cblob/_1791119831_cdfc356103b3_generated_image-50.png", "backgroundColor": "#fff176"},
+          {"id": "4HTQ4AIMB", "label": "蝦丸 Shrimp ball", "image": "https://cdncboard.azureedge.net/cblob/_1791119845_cdfc356103b3_generated_image-51.png", "backgroundColor": "#fff176"},
+          {"id": "iRJZTDRlS", "label": "豬肉丸 Pork ball", "image": "https://cdncboard.azureedge.net/cblob/_1791120018_1d943a49a0d1_generated_image-52.png", "backgroundColor": "#fff176"},
+          {"id": "0e5YCKUOj", "label": "龍蝦丸 lobster ball", "image": "https://cdncboard.azureedge.net/cblob/_1791120033_1d943a49a0d1_generated_image-53.png", "backgroundColor": "#fff176"},
+          {"id": "OJd_Rgyxt", "label": "銀鱈魚 Black cod", "image": "https://cdncboard.azureedge.net/cblob/_1791120056_1d943a49a0d1_generated_image-54.png", "backgroundColor": "#fff176"},
+          {"id": "xescnWtoK", "label": "牛丸 beef ball", "image": "https://cdncboard.azureedge.net/cblob/_1791120069_cdfc356103b3_img_1793__58450_zoom.jpg", "backgroundColor": "#fff176"},
+          {"id": "5A7eRMt2K", "label": "魚皮餃 fish skin dumpling", "image": "https://cdncboard.azureedge.net/cblob/_1791120084_1d943a49a0d1_generated_image-55.png", "backgroundColor": "#fff176"},
+          {"id": "oF5BAcbxPB", "label": "三文魚 salmon", "image": "https://cdncboard.azureedge.net/cblob/_1791120094_1d943a49a0d1_generated_image-56.png", "backgroundColor": "#fff176"},
+          {"id": "ox1F_y7d7", "label": "魚丸 fish ball", "image": "https://cdncboard.azureedge.net/cblob/_1791120109_cdfc356103b3_images-2.jpeg", "backgroundColor": "#fff176"},
+          {"id": "FflG0C6tG", "label": "雞肉腸 Chicken sausage", "image": "https://cdncboard.azureedge.net/cblob/_1791120126_1d943a49a0d1_generated_image-57.png", "backgroundColor": "#fff176"},
+          {"id": "lXQfMkr6C", "label": "脆皮腸 Crispy sausage", "image": "https://cdncboard.azureedge.net/cblob/_1791120139_1d943a49a0d1_generated_image-58.png", "backgroundColor": "#fff176"}
+        ]
+      }
+    ];
+
+    const STORAGE_KEY = 'AAC_MARKET_BOARDS_V1';
+    const SETTINGS_KEY = 'AAC_MARKET_SETTINGS_V1';
+
+    let boards = [];
+    let currentBoardId = '6abe7deea6bb41b87362bba8';
+    let navigationHistory = [];
+    let sentenceItems = [];
+    let isEditMode = false;
+    let itemsPerPage = 9; // default 9 items (3x3)
+    let currentPage = 1;
+    let draggedTileIndex = null;
+    let isSpeakingSequence = false;
+
+    // Speech Configuration
+    let speechSettings = {
+      mode: 'dual', // 'dual', 'cantonese', 'english'
+      rate: 0.9,
+      pitch: 1.0,
+      cantoneseVoiceURI: '',
+      englishVoiceURI: ''
+    };
+
+    let synth = window.speechSynthesis;
+    let availableVoices = [];
+
+    function loadInitialData() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          boards = JSON.parse(saved);
+        } else {
+          boards = JSON.parse(JSON.stringify(DEFAULT_BOARDS));
+        }
+      } catch (e) {
+        boards = JSON.parse(JSON.stringify(DEFAULT_BOARDS));
+      }
+
+      // Load settings
+      try {
+        const savedSettings = localStorage.getItem(SETTINGS_KEY);
+        if (savedSettings) {
+          speechSettings = { ...speechSettings, ...JSON.parse(savedSettings) };
+        }
+      } catch (e) {}
+
+      // Apply initial setting values to form
+      document.querySelector(`input[name="ttsMode"][value="${speechSettings.mode}"]`).checked = true;
+      document.getElementById('speechRateRange').value = speechSettings.rate;
+      document.getElementById('rateValLabel').innerText = speechSettings.rate + 'x';
+      document.getElementById('speechPitchRange').value = speechSettings.pitch;
+      document.getElementById('pitchValLabel').innerText = speechSettings.pitch;
+    }
+
+    function saveBoardsData() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(boards));
+      } catch (e) {
+        console.warn('LocalStorage limit reached or disabled', e);
+      }
+    }
+
+    function saveSpeechSettings() {
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(speechSettings));
+      } catch (e) {}
+    }
+
+    function parseBilingualLabel(rawLabel) {
+      if (!rawLabel) return { zh: '', en: '' };
+      const trimmed = rawLabel.trim();
+      
+      // Match Chinese characters (including rare CJK extensions) at beginning
+      // followed by English/Latin text
+      const match = trimmed.match(/^([\u4e00-\u9fa5\u3400-\u4dbf\u20000-\u2a6df\u2a700-\u2b73f\u2b740-\u2b81f\u2b820-\u2ceaf\uf900-\ufaff\s0-9]+?)\s+([A-Za-z0-9\s\-_',()]+)$/);
+      
+      if (match) {
+        return {
+          zh: match[1].trim(),
+          en: match[2].trim()
+        };
+      }
+      
+      // Fallback: Split by first ASCII letter
+      const firstAsciiIndex = trimmed.search(/[A-Za-z]/);
+      if (firstAsciiIndex > 0) {
+        return {
+          zh: trimmed.substring(0, firstAsciiIndex).trim(),
+          en: trimmed.substring(firstAsciiIndex).trim()
+        };
+      }
+      
+      return { zh: trimmed, en: '' };
+    }
+
+    function populateVoiceList() {
+      if (!synth) return;
+      availableVoices = synth.getVoices() || [];
+      const cantoneseSelect = document.getElementById('voiceSelectCantonese');
+      const englishSelect = document.getElementById('voiceSelectEnglish');
+
+      cantoneseSelect.innerHTML = '<option value="">自動推薦最佳粵語聲音</option>';
+      englishSelect.innerHTML = '<option value="">自動推薦最佳英語聲音</option>';
+
+      availableVoices.forEach((voice) => {
+        const lang = voice.lang || '';
+        const name = voice.name || '';
+        const isZh = lang.includes('zh') || lang.includes('yue');
+        const isEn = lang.startsWith('en');
+
+        if (isZh) {
+          const opt = document.createElement('option');
+          opt.value = voice.voiceURI;
+          opt.textContent = `${name} (${lang})`;
+          if (voice.voiceURI === speechSettings.cantoneseVoiceURI) opt.selected = true;
+          cantoneseSelect.appendChild(opt);
+        }
+
+        if (isEn) {
+          const opt = document.createElement('option');
+          opt.value = voice.voiceURI;
+          opt.textContent = `${name} (${lang})`;
+          if (voice.voiceURI === speechSettings.englishVoiceURI) opt.selected = true;
+          englishSelect.appendChild(opt);
+        }
+      });
+    }
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      populateVoiceList();
+      window.speechSynthesis.onvoiceschanged = populateVoiceList;
+    }
+
+    function getBestVoice(type) {
+      if (!availableVoices.length) {
+        availableVoices = synth ? synth.getVoices() : [];
+      }
+
+      if (type === 'cantonese') {
+        if (speechSettings.cantoneseVoiceURI) {
+          const v = availableVoices.find(x => x.voiceURI === speechSettings.cantoneseVoiceURI);
+          if (v) return v;
+        }
+        // Priority Cantonese tags: zh-HK, yue, Sin-Ji, Danny, Hiugaan
+        const hkVoice = availableVoices.find(v => 
+          (v.lang && (v.lang.toLowerCase() === 'zh-hk' || v.lang.toLowerCase().includes('yue'))) ||
+          v.name.toLowerCase().includes('hong kong') ||
+          v.name.toLowerCase().includes('cantonese')
+        );
+        if (hkVoice) return hkVoice;
+
+        // Fallback Chinese voice (zh-TW or general zh)
+        return availableVoices.find(v => v.lang && v.lang.toLowerCase().startsWith('zh')) || null;
+      } else {
+        // English
+        if (speechSettings.englishVoiceURI) {
+          const v = availableVoices.find(x => x.voiceURI === speechSettings.englishVoiceURI);
+          if (v) return v;
+        }
+        const enVoice = availableVoices.find(v => 
+          v.lang && (v.lang.toLowerCase() === 'en-us' || v.lang.toLowerCase() === 'en-gb')
+        );
+        return enVoice || availableVoices.find(v => v.lang && v.lang.toLowerCase().startsWith('en')) || null;
+      }
+    }
+
+    function speakText(zhText, enText, onEndCallback) {
+      if (!synth) {
+        if (onEndCallback) onEndCallback();
+        return;
+      }
+
+      // Cancel previous lingering speech
+      synth.cancel();
+
+      const mode = speechSettings.mode;
+      const rate = parseFloat(speechSettings.rate) || 0.9;
+      const pitch = parseFloat(speechSettings.pitch) || 1.0;
+
+      // Determine sequences to speak
+      const utterancesToSpeak = [];
+
+      if ((mode === 'dual' || mode === 'cantonese') && zhText) {
+        const uZh = new SpeechSynthesisUtterance(zhText);
+        const voiceZh = getBestVoice('cantonese');
+        if (voiceZh) {
+          uZh.voice = voiceZh;
+          uZh.lang = voiceZh.lang;
+        } else {
+          uZh.lang = 'zh-HK';
+        }
+        uZh.rate = rate;
+        uZh.pitch = pitch;
+        utterancesToSpeak.push({ utt: uZh, text: zhText, lang: 'zh' });
+      }
+
+      if ((mode === 'dual' || mode === 'english') && enText) {
+        const uEn = new SpeechSynthesisUtterance(enText);
+        const voiceEn = getBestVoice('english');
+        if (voiceEn) {
+          uEn.voice = voiceEn;
+          uEn.lang = voiceEn.lang;
+        } else {
+          uEn.lang = 'en-US';
+        }
+        uEn.rate = rate;
+        uEn.pitch = pitch;
+        utterancesToSpeak.push({ utt: uEn, text: enText, lang: 'en' });
+      }
+
+      if (utterancesToSpeak.length === 0) {
+        if (onEndCallback) onEndCallback();
+        return;
+      }
+
+      // Speak sequentially with smooth chained promises
+      let currentIdx = 0;
+      function speakNext() {
+        if (currentIdx >= utterancesToSpeak.length) {
+          if (onEndCallback) onEndCallback();
+          return;
+        }
+        const item = utterancesToSpeak[currentIdx];
+        item.utt.onend = () => {
+          currentIdx++;
+          // Brief pause between dual language tracks
+          setTimeout(speakNext, 200);
+        };
+        item.utt.onerror = (err) => {
+          console.warn('Speech error', err);
+          currentIdx++;
+          speakNext();
+        };
+        synth.speak(item.utt);
+      }
+
+      speakNext();
+    }
+
+    function getCurrentBoard() {
+      return boards.find(b => b.id === currentBoardId) || boards[0];
+    }
+
+    function navigateToBoard(boardId, addToHistory = true) {
+      if (addToHistory && currentBoardId !== boardId) {
+        navigationHistory.push(currentBoardId);
+      }
+      currentBoardId = boardId;
+      currentPage = 1; // reset page to first
+      renderBreadcrumbs();
+      renderCurrentBoard();
+    }
+
+    function navigateBack() {
+      if (navigationHistory.length > 0) {
+        currentBoardId = navigationHistory.pop();
+        currentPage = 1;
+        renderBreadcrumbs();
+        renderCurrentBoard();
+      }
+    }
+
+    function navigateToRoot() {
+      const root = boards.find(b => b.isRoot) || boards[0];
+      if (currentBoardId !== root.id) {
+        navigationHistory.push(currentBoardId);
+        currentBoardId = root.id;
+        currentPage = 1;
+        renderBreadcrumbs();
+        renderCurrentBoard();
+      }
+    }
+
+    function renderBreadcrumbs() {
+      const trail = document.getElementById('breadcrumbTrail');
+      const backBtn = document.getElementById('backBtn');
+      trail.innerHTML = '';
+
+      if (navigationHistory.length > 0) {
+        backBtn.classList.remove('hidden');
+        backBtn.classList.add('flex');
+      } else {
+        backBtn.classList.add('hidden');
+        backBtn.classList.remove('flex');
+      }
+
+      // Root item
+      const rootSpan = document.createElement('span');
+      rootSpan.className = 'cursor-pointer hover:text-blue-600 font-bold flex items-center gap-1';
+      rootSpan.innerHTML = '<i class="fa-solid fa-basket-shopping text-blue-600"></i> 街市買餸';
+      rootSpan.onclick = () => navigateToRoot();
+      trail.appendChild(rootSpan);
+
+      const currentBoard = getCurrentBoard();
+      if (!currentBoard.isRoot) {
+        const sep = document.createElement('span');
+        sep.innerHTML = '<i class="fa-solid fa-chevron-right text-[10px] text-slate-400"></i>';
+        trail.appendChild(sep);
+
+        const currentSpan = document.createElement('span');
+        currentSpan.className = 'font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded';
+        currentSpan.textContent = currentBoard.name;
+        trail.appendChild(currentSpan);
+      }
+    }
+
+    function renderCurrentBoard() {
+      const board = getCurrentBoard();
+      const grid = document.getElementById('cardsGrid');
+      const emptyNotice = document.getElementById('emptyBoardNotice');
+      const paginationBar = document.getElementById('paginationBar');
+      grid.innerHTML = '';
+
+      const tiles = board.tiles || [];
+
+      if (tiles.length === 0) {
+        emptyNotice.classList.remove('hidden');
+        paginationBar.classList.add('hidden');
+        return;
+      } else {
+        emptyNotice.classList.add('hidden');
+      }
+
+      // Adjust grid columns and page slicing
+      let pagedTiles = tiles;
+      if (itemsPerPage > 0) {
+        paginationBar.classList.remove('hidden');
+        paginationBar.classList.add('flex');
+
+        const totalPages = Math.ceil(tiles.length / itemsPerPage) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        const startIdx = (currentPage - 1) * itemsPerPage;
+        pagedTiles = tiles.slice(startIdx, startIdx + itemsPerPage);
+
+        // Update pagination labels & buttons
+        document.getElementById('pageIndicator').innerText = `第 ${currentPage} 頁 / 共 ${totalPages} 頁`;
+        document.getElementById('prevPageBtn').disabled = (currentPage <= 1);
+        document.getElementById('nextPageBtn').disabled = (currentPage >= totalPages);
+
+        // Setup CSS grid columns based on itemsPerPage
+        grid.className = 'grid gap-3 sm:gap-4 transition-all duration-200';
+        if (itemsPerPage === 4) {
+          grid.classList.add('grid-cols-2', 'h-full', 'auto-rows-fr');
+        } else if (itemsPerPage === 6) {
+          grid.classList.add('grid-cols-2', 'sm:grid-cols-3', 'h-full', 'auto-rows-fr');
+        } else if (itemsPerPage === 9) {
+          grid.classList.add('grid-cols-3', 'h-full', 'auto-rows-fr');
+        } else if (itemsPerPage === 12) {
+          grid.classList.add('grid-cols-3', 'sm:grid-cols-4', 'h-full', 'auto-rows-fr');
+        }
+      } else {
+        // Auto scroll mode
+        paginationBar.classList.add('hidden');
+        grid.className = 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4';
+      }
+
+      // Render cards
+      pagedTiles.forEach((tile, localIndex) => {
+        const globalIndex = itemsPerPage > 0 ? (currentPage - 1) * itemsPerPage + localIndex : localIndex;
+        const cardEl = createCardElement(tile, globalIndex, board);
+        grid.appendChild(cardEl);
+      });
+    }
+
+    function createCardElement(tile, index, board) {
+      const { zh, en } = parseBilingualLabel(tile.label);
+      const isFolder = tile.type === 'folder' || Boolean(tile.loadBoard);
+      
+      const card = document.createElement('div');
+      card.id = `card-${tile.id}`;
+      card.setAttribute('data-id', tile.id);
+      card.setAttribute('data-index', index);
+
+      // Card container styles
+      card.className = `group relative rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-between border-2 border-slate-300/80 shadow-md active:scale-95 transition cursor-pointer select-none overflow-hidden touch-target`;
+      card.style.backgroundColor = tile.backgroundColor || (isFolder ? '#BBDEFB' : '#FFF176');
+
+      // Therapist drag and drop handlers
+      if (isEditMode) {
+        card.setAttribute('draggable', 'true');
+        card.addEventListener('dragstart', handleDragStart);
+        card.addEventListener('dragover', handleDragOver);
+        card.addEventListener('dragleave', handleDragLeave);
+        card.addEventListener('drop', handleDrop);
+        card.addEventListener('dragend', handleDragEnd);
+      }
+
+      // Card Header Badge for folders
+      let folderBadge = '';
+      if (isFolder) {
+        folderBadge = `
+          <div class="absolute top-1.5 left-1.5 z-10 bg-blue-700 text-white rounded-lg px-2 py-0.5 text-[10px] sm:text-xs font-black shadow flex items-center gap-1">
+            <i class="fa-solid fa-folder-open"></i>
+            <span>分類</span>
+          </div>`;
+      }
+
+      // Edit Mode Action overlay buttons
+      let editControls = '';
+      if (isEditMode) {
+        editControls = `
+          <div class="absolute top-1.5 right-1.5 z-20 flex gap-1">
+            <button onclick="event.stopPropagation(); moveTile(${index}, -1)" class="w-6 h-6 rounded-full bg-white/90 hover:bg-white text-slate-700 shadow flex items-center justify-center text-[10px]" title="往前移">
+              <i class="fa-solid fa-arrow-left"></i>
+            </button>
+            <button onclick="event.stopPropagation(); moveTile(${index}, 1)" class="w-6 h-6 rounded-full bg-white/90 hover:bg-white text-slate-700 shadow flex items-center justify-center text-[10px]" title="往後移">
+              <i class="fa-solid fa-arrow-right"></i>
+            </button>
+            <button onclick="event.stopPropagation(); openCardModal('${tile.id}')" class="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg flex items-center justify-center text-xs" title="編輯此圖卡">
+              <i class="fa-solid fa-pen"></i>
+            </button>
+          </div>
+        `;
+      }
+
+      // High quality image container with fallbacks
+      const imgHtml = `
+        <div class="w-full flex-1 min-h-[55px] max-h-[140px] flex items-center justify-center overflow-hidden rounded-xl bg-white/80 my-1 relative shadow-inner">
+          <img src="${tile.image || ''}" 
+               alt="${tile.label}" 
+               loading="lazy" 
+               class="w-full h-full object-contain p-1"
+               onerror="this.onerror=null; this.classList.add('hidden'); this.nextElementSibling.classList.remove('hidden');" />
+          <div class="hidden flex-col items-center justify-center text-slate-400 p-2">
+            <i class="${isFolder ? 'fa-solid fa-folder-closed' : 'fa-solid fa-utensils'} text-3xl mb-1 text-slate-300"></i>
+            <span class="text-[10px] font-bold text-center">${zh}</span>
+          </div>
+        </div>
+      `;
+
+      // Dual language label footer
+      const labelHtml = `
+        <div class="w-full text-center py-1 px-1 bg-white/95 rounded-xl border border-slate-200/90 shadow-sm flex flex-col justify-center">
+          <div class="text-sm sm:text-base font-black text-slate-900 leading-tight truncate tracking-wide">${zh}</div>
+          <div class="text-[10px] sm:text-xs font-semibold text-slate-500 leading-tight truncate capitalize">${en}</div>
+        </div>
+      `;
+
+      card.innerHTML = folderBadge + editControls + imgHtml + labelHtml;
+
+      // Click card action
+      card.onclick = () => onCardClicked(tile);
+
+      return card;
+    }
+
+    function onCardClicked(tile) {
+      const isFolder = tile.type === 'folder' || Boolean(tile.loadBoard);
+      const { zh, en } = parseBilingualLabel(tile.label);
+
+      // Play card active visual ripple
+      const cardEl = document.getElementById(`card-${tile.id}`);
+      if (cardEl) {
+        cardEl.classList.add('speaking-active');
+        setTimeout(() => cardEl.classList.remove('speaking-active'), 800);
+      }
+
+      // Speak pronunciation
+      speakText(zh, en);
+
+      if (isFolder) {
+        // Find targeted board
+        const targetBoardId = tile.loadBoard;
+        const targetBoard = boards.find(b => b.id === targetBoardId || b.name === zh || b.name === tile.label);
+        
+        if (targetBoard) {
+          setTimeout(() => {
+            navigateToBoard(targetBoard.id);
+          }, 350);
+        } else {
+          console.warn('Sub-board not found:', targetBoardId);
+        }
+      } else {
+        // Single communication item -> append to sentence strip
+        addCardToSentence(tile);
+      }
+    }
+
+    function addCardToSentence(tile) {
+      sentenceItems.push(tile);
+      renderSentenceBar();
+    }
+
+    function removeLastSentenceItem() {
+      if (sentenceItems.length > 0) {
+        sentenceItems.pop();
+        renderSentenceBar();
+      }
+    }
+
+    function clearSentenceBar() {
+      if (synth) synth.cancel();
+      sentenceItems = [];
+      renderSentenceBar();
+    }
+
+    function renderSentenceBar() {
+      const container = document.getElementById('sentenceBar');
+      const badge = document.getElementById('sentenceCountBadge');
+      badge.textContent = sentenceItems.length;
+
+      if (sentenceItems.length === 0) {
+        container.innerHTML = `
+          <p id="sentenceEmptyPlaceholder" class="text-xs text-slate-400 italic pl-3 flex items-center gap-2">
+            <i class="fa-regular fa-hand-pointer animate-pulse"></i>
+            點擊下方圖卡以加入句子並發音 (Tap cards to speak and add to sentence)...
+          </p>
+        `;
+        return;
+      }
+
+      container.innerHTML = '';
+      sentenceItems.forEach((tile, index) => {
+        const { zh, en } = parseBilingualLabel(tile.label);
+        const itemEl = document.createElement('div');
+        itemEl.id = `sentence-item-${index}`;
+        itemEl.className = 'flex-shrink-0 flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-amber-300 shadow-sm transition';
+        itemEl.innerHTML = `
+          <div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center overflow-hidden border">
+            <img src="${tile.image || ''}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/40x40/FFF176/333333?text=${zh.charAt(0)}'"/>
+          </div>
+          <div class="leading-tight text-left">
+            <div class="text-xs font-bold text-slate-800">${zh}</div>
+            <div class="text-[10px] text-slate-500">${en}</div>
+          </div>
+          <button onclick="event.stopPropagation(); removeSentenceItemAt(${index})" class="text-slate-400 hover:text-rose-600 pl-1 text-[11px]">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        `;
+        itemEl.onclick = () => {
+          speakText(zh, en);
+        };
+        container.appendChild(itemEl);
+      });
+
+      // Auto scroll sentence bar to rightmost item
+      container.scrollLeft = container.scrollWidth;
+    }
+
+    function removeSentenceItemAt(idx) {
+      sentenceItems.splice(idx, 1);
+      renderSentenceBar();
+    }
+
+    function speakSentenceQueue() {
+      if (sentenceItems.length === 0 || isSpeakingSequence) return;
+      isSpeakingSequence = true;
+
+      const playBtn = document.getElementById('playSentenceBtn');
+      playBtn.classList.add('bg-amber-600');
+      playBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>播放中...</span>';
+
+      let currentIndex = 0;
+
+      function speakCurrent() {
+        if (currentIndex >= sentenceItems.length) {
+          // Finished all items
+          isSpeakingSequence = false;
+          playBtn.classList.remove('bg-amber-600');
+          playBtn.classList.add('bg-emerald-600');
+          playBtn.innerHTML = `<i class="fa-solid fa-play text-base"></i><span class="hidden xs:inline">播放句子</span><span class="text-[10px] bg-emerald-800/60 px-1.5 py-0.5 rounded-full" id="sentenceCountBadge">${sentenceItems.length}</span>`;
+          return;
+        }
+
+        // Highlight sentence card in strip
+        document.querySelectorAll('[id^="sentence-item-"]').forEach(el => el.classList.remove('speaking-active', 'ring-2', 'ring-blue-600'));
+        const itemEl = document.getElementById(`sentence-item-${currentIndex}`);
+        if (itemEl) {
+          itemEl.classList.add('ring-2', 'ring-blue-600', 'bg-blue-50');
+        }
+
+        const tile = sentenceItems[currentIndex];
+        const { zh, en } = parseBilingualLabel(tile.label);
+
+        speakText(zh, en, () => {
+          if (itemEl) {
+            itemEl.classList.remove('ring-2', 'ring-blue-600', 'bg-blue-50');
+          }
+          currentIndex++;
+          // Pause 0.35s between words in sentence
+          setTimeout(speakCurrent, 350);
+        });
+      }
+
+      speakCurrent();
+    }
+
+    function setGridSize(size, label) {
+      itemsPerPage = size;
+      currentPage = 1;
+      document.getElementById('currentLayoutLabel').innerText = label;
+      document.getElementById('layoutMenu').classList.add('hidden');
+      renderCurrentBoard();
+    }
+
+    function changePage(delta) {
+      const board = getCurrentBoard();
+      const tiles = board.tiles || [];
+      const totalPages = Math.ceil(tiles.length / itemsPerPage) || 1;
+      currentPage += delta;
+      if (currentPage < 1) currentPage = 1;
+      if (currentPage > totalPages) currentPage = totalPages;
+      renderCurrentBoard();
+    }
+
+    function toggleEditMode() {
+      isEditMode = !isEditMode;
+      const bar = document.getElementById('therapistToolbar');
+      const btn = document.getElementById('toggleEditModeBtn');
+      const btnText = document.getElementById('editModeBtnText');
+
+      if (isEditMode) {
+        bar.classList.remove('hidden');
+        btn.classList.remove('bg-slate-100', 'text-slate-700');
+        btn.classList.add('bg-indigo-600', 'text-white');
+        btnText.textContent = '完成編輯 (Done)';
+      } else {
+        bar.classList.add('hidden');
+        btn.classList.add('bg-slate-100', 'text-slate-700');
+        btn.classList.remove('bg-indigo-600', 'text-white');
+        btnText.textContent = '言語治療師模式';
+      }
+      renderCurrentBoard();
+    }
+
+    function moveTile(currentIndex, direction) {
+      const board = getCurrentBoard();
+      const newIndex = currentIndex + direction;
+      if (newIndex < 0 || newIndex >= board.tiles.length) return;
+
+      const temp = board.tiles[currentIndex];
+      board.tiles[currentIndex] = board.tiles[newIndex];
+      board.tiles[newIndex] = temp;
+
+      saveBoardsData();
+      renderCurrentBoard();
+    }
+
+    // HTML5 Drag and Drop logic
+    function handleDragStart(e) {
+      draggedTileIndex = parseInt(this.getAttribute('data-index'), 10);
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      this.classList.add('drag-over');
+    }
+
+    function handleDragLeave() {
+      this.classList.remove('drag-over');
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+      const targetIndex = parseInt(this.getAttribute('data-index'), 10);
+
+      if (draggedTileIndex !== null && draggedTileIndex !== targetIndex) {
+        const board = getCurrentBoard();
+        const movedItem = board.tiles.splice(draggedTileIndex, 1)[0];
+        board.tiles.splice(targetIndex, 0, movedItem);
+        saveBoardsData();
+        renderCurrentBoard();
+      }
+    }
+
+    function handleDragEnd() {
+      this.classList.remove('dragging');
+      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      draggedTileIndex = null;
+    }
+
+    function openCardModal(tileId = null) {
+      const modal = document.getElementById('cardModal');
+      const form = document.getElementById('cardForm');
+      form.reset();
+
+      const loadBoardSelect = document.getElementById('editCardLoadBoard');
+      loadBoardSelect.innerHTML = '';
+      boards.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = `${b.name} (${b.tiles?.length || 0} 圖卡)`;
+        loadBoardSelect.appendChild(opt);
+      });
+
+      const currentBoard = getCurrentBoard();
+
+      if (tileId) {
+        // Edit existing tile
+        const tile = currentBoard.tiles.find(t => t.id === tileId);
+        if (!tile) return;
+
+        document.getElementById('cardModalTitle').innerHTML = '<i class="fa-solid fa-pen-to-square text-blue-600"></i> 編輯圖卡 (Edit Tile)';
+        document.getElementById('editCardId').value = tile.id;
+        
+        const { zh, en } = parseBilingualLabel(tile.label);
+        document.getElementById('editCardZh').value = zh;
+        document.getElementById('editCardEn').value = en;
+        document.getElementById('editCardImg').value = tile.image || '';
+        document.getElementById('editCardColor').value = tile.backgroundColor || '#fff176';
+        
+        const isFolder = tile.type === 'folder' || Boolean(tile.loadBoard);
+        document.querySelector(`input[name="cardType"][value="${isFolder ? 'folder' : 'button'}"]`).checked = true;
+        if (tile.loadBoard) {
+          loadBoardSelect.value = tile.loadBoard;
+        }
+
+        document.getElementById('deleteCardBtn').classList.remove('hidden');
+        previewImageInput();
+      } else {
+        // Create new tile
+        document.getElementById('cardModalTitle').innerHTML = '<i class="fa-solid fa-plus text-emerald-600"></i> 新增圖卡 (Add New Tile)';
+        document.getElementById('editCardId').value = '';
+        document.getElementById('editCardColor').value = '#fff176';
+        document.getElementById('deleteCardBtn').classList.add('hidden');
+        previewImageInput();
+      }
+
+      toggleCardTypeOptions();
+      modal.classList.remove('hidden');
+    }
+
+    function closeCardModal() {
+      document.getElementById('cardModal').classList.add('hidden');
+    }
+
+    function toggleCardTypeOptions() {
+      const type = document.querySelector('input[name="cardType"]:checked').value;
+      const targetContainer = document.getElementById('targetFolderSelectContainer');
+      if (type === 'folder') {
+        targetContainer.classList.remove('hidden');
+      } else {
+        targetContainer.classList.add('hidden');
+      }
+    }
+
+    function setFormColor(hex) {
+      document.getElementById('editCardColor').value = hex;
+    }
+
+    function previewImageInput() {
+      const url = document.getElementById('editCardImg').value.trim();
+      const img = document.getElementById('cardModalImgPreview');
+      const fallback = document.getElementById('cardModalImgFallback');
+
+      if (url) {
+        img.src = url;
+        img.classList.remove('hidden');
+        fallback.classList.add('hidden');
+      } else {
+        img.src = '';
+        img.classList.add('hidden');
+        fallback.classList.remove('hidden');
+      }
+    }
+
+    function saveCardForm(e) {
+      e.preventDefault();
+      const cardId = document.getElementById('editCardId').value;
+      const zh = document.getElementById('editCardZh').value.trim();
+      const en = document.getElementById('editCardEn').value.trim();
+      const img = document.getElementById('editCardImg').value.trim();
+      const color = document.getElementById('editCardColor').value;
+      const type = document.querySelector('input[name="cardType"]:checked').value;
+      const loadBoard = document.getElementById('editCardLoadBoard').value;
+
+      const combinedLabel = en ? `${zh} ${en}` : zh;
+      const board = getCurrentBoard();
+
+      if (cardId) {
+        // Update existing
+        const tile = board.tiles.find(t => t.id === cardId);
+        if (tile) {
+          tile.label = combinedLabel;
+          tile.image = img;
+          tile.backgroundColor = color;
+          tile.type = type;
+          if (type === 'folder') {
+            tile.loadBoard = loadBoard;
+          } else {
+            delete tile.loadBoard;
+          }
+        }
+      } else {
+        // Create new tile
+        const newTile = {
+          id: 'card_' + Date.now().toString(36),
+          label: combinedLabel,
+          image: img,
+          backgroundColor: color,
+          type: type
+        };
+        if (type === 'folder') {
+          newTile.loadBoard = loadBoard;
+        }
+        board.tiles.push(newTile);
+      }
+
+      saveBoardsData();
+      renderCurrentBoard();
+      closeCardModal();
+    }
+
+    function deleteCurrentCard() {
+      const cardId = document.getElementById('editCardId').value;
+      if (!cardId) return;
+
+      const board = getCurrentBoard();
+      board.tiles = board.tiles.filter(t => t.id !== cardId);
+      saveBoardsData();
+      renderCurrentBoard();
+      closeCardModal();
+    }
+
+    function exportBoardsJSON() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(boards, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `AAC_Market_Boards_${new Date().toISOString().slice(0, 10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importBoardsJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (Array.isArray(imported)) {
+            boards = imported;
+            saveBoardsData();
+            navigateToRoot();
+          }
+        } catch (err) {
+          console.error("Invalid JSON format", err);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    }
+
+    function resetToDefaultData() {
+      boards = JSON.parse(JSON.stringify(DEFAULT_BOARDS));
+      saveBoardsData();
+      navigateToRoot();
+    }
+
+    function openSpeechModal() {
+      populateVoiceList();
+      document.getElementById('speechModal').classList.remove('hidden');
+    }
+
+    function closeSpeechModal() {
+      document.getElementById('speechModal').classList.add('hidden');
+    }
+
+    function updateTtsSettings() {
+      speechSettings.mode = document.querySelector('input[name="ttsMode"]:checked').value;
+      speechSettings.rate = parseFloat(document.getElementById('speechRateRange').value) || 0.9;
+      speechSettings.pitch = parseFloat(document.getElementById('speechPitchRange').value) || 1.0;
+      saveSpeechSettings();
+    }
+
+    function updateSelectedVoices() {
+      speechSettings.cantoneseVoiceURI = document.getElementById('voiceSelectCantonese').value;
+      speechSettings.englishVoiceURI = document.getElementById('voiceSelectEnglish').value;
+      saveSpeechSettings();
+    }
+
+    function testCurrentVoice() {
+      updateTtsSettings();
+      updateSelectedVoices();
+      speakText('西蘭花', 'Broccoli');
+    }
+
+    document.addEventListener('click', (e) => {
+      const dropdown = document.getElementById('layoutDropdownContainer');
+      const menu = document.getElementById('layoutMenu');
+      if (dropdown && !dropdown.contains(e.target)) {
+        menu.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('layoutBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const menu = document.getElementById('layoutMenu');
+      menu.classList.toggle('hidden');
+    });
+
+    window.onload = function() {
+      loadInitialData();
+      populateVoiceList();
+      renderBreadcrumbs();
+      renderCurrentBoard();
+      renderSentenceBar();
+    };
+  </script>
+</body>
+</html>
